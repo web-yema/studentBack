@@ -1,11 +1,13 @@
 let express = require("express");
 let bodyParse = require("body-parser");
-let jwt = require("jsonwebtoken");
-const multer = require("multer");
+let cors = require("cors"); //跨域
+let history = require('connect-history-api-fallback');// 路由模式为history时使用
+let jwt = require("jsonwebtoken"); // jwt 持久化登录
+const multer = require("multer");// 上传头像
 let app = express();
 app.use(bodyParse.json());
-let cors = require("cors"); //配置跨域
 app.use(cors()); //跨域中间件
+app.use(history()); // 使用history中间件
 let {
   Allstudent,
   Admin,
@@ -15,7 +17,7 @@ let {
   Market,
   Class
 } = require("../db/model/user");
-// 静态资源
+// 配置静态资源
 app.use(express.static('../public'))
 
 // 获取所有学生
@@ -81,17 +83,25 @@ app.post("/inExcel", async (req, res) => {
   let maxPage = 7; //每页最大条数
   let maxpages = Math.ceil(allstudentList.length / maxPage); //设置最大页数
   try {
-    Allstudent.insertMany(user, (err, ress) => {
+    Allstudent.findOne({ studentID: user.studentID }, (err, ret) => {
       if (err) {
-        console.log(err);
-      } else {
-        res.json({
-          code: 200,
-          msg: "添加成功",
-          data: ress,
-          maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
-        });
+        return console.log("查询失败");
       }
+      if (ret) {
+        return res.json({ code: 203, msg: "该学生已存在" });
+      }
+      Allstudent.insertMany(user, (err, ress) => {
+        if (err) {
+          console.log(err);
+        } else {
+          res.json({
+            code: 200,
+            msg: "添加成功",
+            data: ress,
+            maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
+          });
+        }
+      })
     });
   } catch (error) {
     res.json({
@@ -128,17 +138,25 @@ app.post("/addallStudent", async (req, res) => {
     let maxPage = 7; //每页最大条数
     let maxpages = Math.ceil(allstudentList.length / maxPage); //设置最大页数
     try {
-      Allstudent.create(user, (err, ress) => {
+      Allstudent.findOne({ studentID: user.studentID }, (err, ret) => {
         if (err) {
-          console.log(err);
-        } else {
-          res.json({
-            code: 200,
-            msg: "添加成功",
-            data: ress,
-            maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
-          });
+          return console.log("查询失败");
         }
+        if (ret) {
+          return res.json({ code: 203, msg: "该学生已存在" });
+        }
+        Allstudent.create(user, (err, ress) => {
+          if (err) {
+            console.log(err);
+          } else {
+            res.json({
+              code: 200,
+              msg: "添加成功",
+              data: ress,
+              maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
+            });
+          }
+        })
       });
     } catch (error) {
       res.json({
