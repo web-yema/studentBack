@@ -1,4 +1,5 @@
 let express = require("express");
+let path = require("path")
 let bodyParse = require("body-parser");
 let cors = require("cors"); //跨域
 let history = require('connect-history-api-fallback');// 路由模式为history时使用
@@ -18,7 +19,7 @@ let {
   Class
 } = require("../db/model/user");
 // 配置静态资源
-app.use(express.static('../public'))
+app.use(express.static(path.join(__dirname, '../public')))
 
 // 获取所有学生
 app.get("/allstudent", async (req, res) => {
