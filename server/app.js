@@ -54,7 +54,8 @@ app.post("/allstudentPage", async (req, res) => {
   let page = req.body.page; //当前页数
   let maxPage = 7; //每页最大条数
   try {
-    let allstudentList = await Allstudent.find({});
+    let allstudentList = await Allstudent.find({}, null, { sort: { studentID: -1 } });
+    console.log(allstudentList)
     let maxPageHome = Math.ceil(allstudentList.length / maxPage); //设置最大页数
     if (page > maxPageHome) {
       res.json({
@@ -75,10 +76,19 @@ app.post("/allstudentPage", async (req, res) => {
     console.log(error);
   }
 });
+
 // ·························································································································
 // Excel导入
 app.post("/inExcel", async (req, res) => {
   let user = req.body.excarr;
+  if (user.study * 10 < user.chengji) {
+    res.json({
+      code: 201,
+      msg: "该生的学制总成绩小于当前成绩，不成立",
+    })
+    return false;
+  }
+  user.graduation = user.study * 10 - user.chengji  // 计算还差成绩
   //   上述条件都不成立再进行添加
   let allstudentList = await Allstudent.find({});
   let maxPage = 7; //每页最大条数
@@ -114,58 +124,46 @@ app.post("/inExcel", async (req, res) => {
 //在全部学生中增加
 app.post("/addallStudent", async (req, res) => {
   let user = req.body;
-  if (
-    user.studentID === "" ||
-    user.name === "" ||
-    user.sex === "" ||
-    user.age === "" ||
-    user.nativeplace === "" ||
-    user.study === "" ||
-    user.major === "" ||
-    user.classes === "" ||
-    user.citycenter === "" ||
-    user.chengji === "" ||
-    user.graduation === "" ||
-    user.failss === ""
-  ) {
+  if (user.study * 10 < user.chengji) {
     res.json({
       code: 201,
-      msg: "提交信息中存在空项"
-    });
+      msg: "该生的学制总成绩小于当前成绩，不成立",
+    })
     return false;
-  } else {
-    //   上述条件都不成立再进行添加
-    let allstudentList = await Allstudent.find({});
-    let maxPage = 7; //每页最大条数
-    let maxpages = Math.ceil(allstudentList.length / maxPage); //设置最大页数
-    try {
-      Allstudent.findOne({ studentID: user.studentID }, (err, ret) => {
-        if (err) {
-          return console.log("查询失败");
-        }
-        if (ret) {
-          return res.json({ code: 203, msg: "该学生已存在" });
-        }
-        Allstudent.create(user, (err, ress) => {
-          if (err) {
-            console.log(err);
-          } else {
-            res.json({
-              code: 200,
-              msg: "添加成功",
-              data: ress,
-              maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
-            });
-          }
-        })
-      });
-    } catch (error) {
-      res.json({
-        code: 211,
-        msg: "连接失败"
-      });
-    }
   }
+  user.graduation = user.study * 10 - user.chengji  // 计算还差成绩
+  user.failss = 0 //  挂科次数默认 0 
+  let allstudentList = await Allstudent.find({});
+  let maxPage = 7; //每页最大条数
+  let maxpages = Math.ceil(allstudentList.length / maxPage); //设置最大页数
+  try {
+    Allstudent.findOne({ studentID: user.studentID }, (err, ret) => {
+      if (err) {
+        return console.log("查询失败");
+      }
+      if (ret) {
+        return res.json({ code: 203, msg: "该学生已存在" });
+      }
+      Allstudent.create(user, (err, ress) => {
+        if (err) {
+          console.log(err);
+        } else {
+          res.json({
+            code: 200,
+            msg: "添加成功",
+            data: ress,
+            maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
+          });
+        }
+      })
+    });
+  } catch (error) {
+    res.json({
+      code: 211,
+      msg: "连接失败"
+    });
+  }
+
 });
 
 // 在全部学生中删除
@@ -289,7 +287,7 @@ app.post("/selectAllstud", async (req, res) => {
   }
 
   try {
-    Allstudent.find(obj, (err, ress) => {
+    Allstudent.find(obj, null, { sort: { studentID: -1 } }, (err, ress) => {
       if (err) {
         console.log(err);
       } else {
@@ -344,7 +342,24 @@ app.post("/updateStudent", async (req, res) => {
     });
   }
 });
-
+// 学生根据学号查询个人信息
+app.post("/selectOneStudent", (req, res) => {
+  Allstudent.findOne({ studentID: req.body.studentID }, (err, ret) => {
+    if (err) { return console.log(err) }
+    if (ret) {
+      res.json({
+        code: 200,
+        data: [ret],
+        msg: "查询成功"
+      })
+    } else {
+      res.json({
+        code: 201,
+        msg: "暂无该学生"
+      })
+    }
+  })
+})
 // ·························································································································
 // 获取所有用户信息
 app.get("/getAllAdmin", (req, res) => {
@@ -432,7 +447,7 @@ app.get("/getadmin", (req, res) => {
       res.json({
         code: 5005,
         data: "success",
-        message: "用户未登录"
+        message: "登录时间已过期，请重新登录"
       });
     } else {
       Admin.findOne({ adminName: decode.username }, (err, ret) => {
@@ -718,14 +733,12 @@ app.post("/headTeacherPage", async (req, res) => {
 });
 // 添加班主任
 app.post("/addHeadTeacher", (req, res) => {
-  let { headname, headsex, headage, college, entryDate, position } = req.body;
+  let { headname, headsex, headage, entryDate } = req.body;
   var user = new Headteacher({
     headname,
     headsex,
     headage,
-    college,
-    entryDate,
-    position
+    entryDate
   });
   user.save(function (err, ress) {
     if (err) {
@@ -779,11 +792,11 @@ app.post("/delHeadTeacher", async (req, res) => {
 });
 // 修改班主任信息
 app.post("/updateHeadTeacher", (req, res) => {
-  const { _id, position } = req.body;
+  const { _id, headname } = req.body;
   Headteacher.findByIdAndUpdate(
     _id,
     {
-      position
+      headname
     },
     (err, ret) => {
       if (err) {
@@ -854,15 +867,13 @@ app.post("/lecturerPage", async (req, res) => {
 });
 // 添加讲师
 app.post("/addLecturer", (req, res) => {
-  let { lecturername, lecturersex, lecturerage, college, major, entryDate, position } = req.body;
+  let { lecturername, lecturersex, lecturerage, major, entryDate } = req.body;
   var user = new Lecturer({
     lecturername,
     lecturersex,
     lecturerage,
-    college,
     major,
-    entryDate,
-    position
+    entryDate
   });
   user.save(function (err, ress) {
     if (err) {
@@ -916,11 +927,11 @@ app.post("/delLecturer", async (req, res) => {
 });
 // 修改讲师信息
 app.post("/updateLecturer", (req, res) => {
-  const { _id, position } = req.body;
+  const { _id, lecturername } = req.body;
   Lecturer.findByIdAndUpdate(
     _id,
     {
-      position
+      lecturername
     },
     (err, ret) => {
       if (err) {
@@ -1038,6 +1049,46 @@ app.post("/addMarket", (req, res) => {
     });
   });
 });
+// 删除市场部
+app.post("/delMarket", async (req, res) => {
+  let Id = req.body;
+
+  let userlists = await Market.find(Id, (err, ress) => {
+    //   把你当前的_id值放到数据库里查找
+    if (err) {
+      console.log(err);
+    } else {
+      return ress;
+    }
+  });
+
+  if (userlists.length === 0) {
+    //   如果说你输入的_id值在数据库里面没有，就走这里
+    res.json({
+      code: 201,
+      msg: "没有当前项"
+    });
+    return false;
+  }
+  //   在数据库里能找到_id值 就进行删除
+  try {
+    Market.remove(Id, error => {
+      if (error) {
+        console.log(error);
+      } else {
+        res.json({
+          code: 200,
+          msg: "删除成功"
+        });
+      }
+    });
+  } catch {
+    res.json({
+      code: 210,
+      msg: "连接删除接口失败"
+    });
+  }
+});
 // ·························································································································
 // 获取所有班级
 app.get("/getClass", async (req, res) => {
@@ -1068,10 +1119,15 @@ app.get("/getClass", async (req, res) => {
 });
 // 在所有班级中实现分页
 app.post("/classPage", async (req, res) => {
-  let { page } = req.body; //当前页数
+  let { page, major } = req.body; //当前页数
   let pageSize = 6; //每页显示条目个数
+  // 根据专业过滤对应班级
+  let filterMajor = {}
+  if (major) {
+    filterMajor.major = major
+  }
   try {
-    let dataList = await Class.find({});//获取班级的所有数据
+    let dataList = await Class.find(filterMajor);//获取班级的所有数据
     let maxPageHome = Math.ceil(dataList.length / pageSize); //最大页数
     if (page > maxPageHome) {
       res.json({
