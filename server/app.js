@@ -81,26 +81,24 @@ app.post("/allstudentPage", async (req, res) => {
 // Excel导入
 app.post("/inExcel", async (req, res) => {
   let user = req.body.excarr;
-  if (user.study * 10 < user.chengji) {
-    res.json({
-      code: 201,
-      msg: "该生的学制总成绩小于当前成绩，不成立",
+  let exist = []; // 存储数据库已存在的学生信息
+  let incoExist = []; // 存储导入时已存在的学生
+  // 逆向循环遍历（解决：删除数组里元素出现下标不对问题）
+  for (let i = user.length - 1; i >= 0; i--) {
+    await Allstudent.findOne({ studentID: user[i].studentID }, (err, ret) => {
+      if (err) { return console.log("查询失败"); }
+      if (ret) {
+        exist.push(ret)
+        incoExist.push(user[i])
+        user.splice(i, 1)
+      }
     })
-    return false;
   }
-  user.graduation = user.study * 10 - user.chengji  // 计算还差成绩
-  //   上述条件都不成立再进行添加
-  let allstudentList = await Allstudent.find({});
+  let allstudentList = await Allstudent.find({});// 获取所有学生
   let maxPage = 7; //每页最大条数
   let maxpages = Math.ceil(allstudentList.length / maxPage); //设置最大页数
   try {
-    Allstudent.findOne({ studentID: user.studentID }, (err, ret) => {
-      if (err) {
-        return console.log("查询失败");
-      }
-      if (ret) {
-        return res.json({ code: 203, msg: "该学生已存在" });
-      }
+    if (user.length !== 0) {
       Allstudent.insertMany(user, (err, ress) => {
         if (err) {
           console.log(err);
@@ -109,11 +107,20 @@ app.post("/inExcel", async (req, res) => {
             code: 200,
             msg: "添加成功",
             data: ress,
+            exist,
+            incoExist,
             maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
           });
         }
+      });
+    } else if (exist.length !== 0) {
+      res.json({
+        code: 201,
+        msg: "导入学生存在重复",
+        exist,
+        incoExist
       })
-    });
+    }
   } catch (error) {
     res.json({
       code: 211,
@@ -1140,6 +1147,7 @@ app.post("/classPage", async (req, res) => {
       res.json({
         code: 200,
         data: pagelist,// 截取的当前页的数据
+        dataList,
         total: dataList.length, // 总数据的长度，
         delpage: Math.ceil(dataList.length / pageSize) //页数,在删除时用,当删除的数据是你当前页的最后一条数据的时候,向上取最大页数
       });
