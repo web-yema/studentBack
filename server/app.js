@@ -55,7 +55,6 @@ app.post("/allstudentPage", async (req, res) => {
   let maxPage = 7; //每页最大条数
   try {
     let allstudentList = await Allstudent.find({}, null, { sort: { studentID: -1 } });
-    console.log(allstudentList)
     let maxPageHome = Math.ceil(allstudentList.length / maxPage); //设置最大页数
     if (page > maxPageHome) {
       res.json({
@@ -81,15 +80,13 @@ app.post("/allstudentPage", async (req, res) => {
 // Excel导入
 app.post("/inExcel", async (req, res) => {
   let user = req.body.excarr;
-  let exist = []; // 存储数据库已存在的学生信息
-  let incoExist = []; // 存储导入时已存在的学生
+  let exist = []; // 存储导入学生时重复的学生信息
   // 逆向循环遍历（解决：删除数组里元素出现下标不对问题）
   for (let i = user.length - 1; i >= 0; i--) {
     await Allstudent.findOne({ studentID: user[i].studentID }, (err, ret) => {
       if (err) { return console.log("查询失败"); }
       if (ret) {
-        exist.push(ret)
-        incoExist.push(user[i])
+        exist.push([ret, { _id: ret._id, ...user[i] }])
         user.splice(i, 1)
       }
     })
@@ -108,7 +105,6 @@ app.post("/inExcel", async (req, res) => {
             msg: "添加成功",
             data: ress,
             exist,
-            incoExist,
             maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
           });
         }
@@ -117,8 +113,7 @@ app.post("/inExcel", async (req, res) => {
       res.json({
         code: 201,
         msg: "导入学生存在重复",
-        exist,
-        incoExist
+        exist
       })
     }
   } catch (error) {
@@ -294,15 +289,23 @@ app.post("/selectAllstud", async (req, res) => {
   }
 
   try {
-    Allstudent.find(obj, null, { sort: { studentID: -1 } }, (err, ress) => {
-      if (err) {
-        console.log(err);
-      } else {
+    let allstudentList = await Allstudent.find({}, null, { sort: { studentID: -1 } });
+    let maxPageHome = Math.ceil(allstudentList.length / maxPage); //设置最大页数
+    if (page > maxPageHome) {
+      res.json({
+        code: 202,
+        msg: "超过最大页数"
+      });
+      return false;
+    } else {
+      Allstudent.find(obj, null, { sort: { studentID: -1 } }, (err, ress) => {
+        if (err) { return console.log(err); }
         if (ress) {
           res.json({
             code: 200,
             data: ress.slice((page - 1) * maxPage, page * maxPage),
-            total: ress.length
+            total: ress.length,
+            delpage: maxPageHome
           });
         } else {
           res.json({
@@ -310,8 +313,9 @@ app.post("/selectAllstud", async (req, res) => {
             msg: "当前项不存在"
           });
         }
-      }
-    });
+
+      });
+    }
   } catch (error) {
     res.json({
       code: 221,
@@ -342,6 +346,46 @@ app.post("/updateStudent", async (req, res) => {
         });
       }
     });
+  } catch {
+    res.json({
+      code: 202,
+      msg: "连接更新接口失败"
+    });
+  }
+});
+// Excel导入学生时修改重复项
+app.post("/updateExcelstudent", async (req, res) => {
+  let { incoExist } = req.body
+  await Allstudent.find({ _id: { $in: incoExist } }, (err, ret) => {
+    if (err) { return console.log(err); }
+    if (ret) {
+      if (ret.length === 0) {
+        res.json({
+          code: 201,
+          msg: "没有当前项"
+        });
+        return false
+      }
+    }
+  });
+  try {
+    // 进行修改
+    for (let i = 0; i < incoExist.length; i++) {
+      await Allstudent.updateOne({ _id: incoExist[i]._id }, incoExist[i], (err, ret) => {
+        if (err) { return console.log(err); }
+        if (!ret) {
+          return res.json({
+            code: 203,
+            msg: `${incoExist[i].name} 更新错误`
+          });
+        }
+      });
+    }
+    res.json({
+      code: 200,
+      msg: "更新成功"
+    });
+
   } catch {
     res.json({
       code: 202,
