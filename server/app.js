@@ -429,8 +429,8 @@ app.get("/getAllAdmin", (req, res) => {
           }
           // 把过滤掉权限为 1 的数据，再次将密码去掉
           for (let i = 0; i < ret.length; i++) {
-            let { _id, adminName, avatar, power } = ret[i]
-            ret[i] = { _id, adminName, avatar, power }
+            let { _id, adminName, avatar, power, password } = ret[i]
+            ret[i] = { _id, adminName, avatar, power, password }
           }
           res.json({
             code: 200,
@@ -598,7 +598,7 @@ app.post("/register", (req, res) => {
 });
 // 修改用户密码/权限
 app.post("/updateAdminPass", (req, res) => {
-  const { _id, oldpassword, newpassword, power } = req.body;
+  const { _id, oldpassword, newpassword, power, adminName,password } = req.body;
   let upObj = {}
   if (oldpassword && newpassword) {
     upObj.password = newpassword
@@ -607,6 +607,10 @@ app.post("/updateAdminPass", (req, res) => {
     upObj.loginFlag = false
   } else if (power) {
     upObj.power = power
+  } else  if (adminName) {
+    upObj.adminName = adminName
+  } else if (password) {
+    upObj.password = password
   }
   Admin.findOne({ _id }, (err, ret) => {
     if (err) { return console.log(err) };
@@ -644,6 +648,26 @@ app.post("/updateAdminPass", (req, res) => {
           res.json({
             code: 2002,
             msg: "权限修改成功"
+          })
+        }
+      )
+    } else if (adminName) { //如果前端传的参数为username，将修改用户名
+      Admin.updateOne(
+        {'_id':_id},upObj, (err, docs) => {
+          if (err) { return console.log('更新数据失败') }
+          res.json({
+            code: 2003,
+            msg: "用户名修改成功"
+          })
+        }
+      )
+    } else if (password) { //如果前端传的参数为password，将修改密码
+      Admin.updateOne(
+        {'_id':_id},upObj, (err, docs) => {
+          if (err) { return console.log('更新数据失败') }
+          res.json({
+            code: 2005,
+            msg: "密码修改成功"
           })
         }
       )
