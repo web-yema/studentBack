@@ -641,7 +641,7 @@ app.post("/updateAdminPass", (req, res) => {
           })
         }
       )
-    } else if (power) {//如果前端传的参数为power，将修改权限
+    } else if (power,adminName,password) {//如果前端传的参数为power，将修改权限
       Admin.updateOne(
         { '_id': _id }, upObj, (err, docs) => {
           if (err) { return console.log('更新数据失败') }
@@ -651,27 +651,7 @@ app.post("/updateAdminPass", (req, res) => {
           })
         }
       )
-    } else if (adminName) { //如果前端传的参数为username，将修改用户名
-      Admin.updateOne(
-        {'_id':_id},upObj, (err, docs) => {
-          if (err) { return console.log('更新数据失败') }
-          res.json({
-            code: 2003,
-            msg: "用户名修改成功"
-          })
-        }
-      )
-    } else if (password) { //如果前端传的参数为password，将修改密码
-      Admin.updateOne(
-        {'_id':_id},upObj, (err, docs) => {
-          if (err) { return console.log('更新数据失败') }
-          res.json({
-            code: 2005,
-            msg: "密码修改成功"
-          })
-        }
-      )
-    }
+    } 
   })
 });
 // 删除管理员用户
