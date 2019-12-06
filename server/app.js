@@ -605,11 +605,14 @@ app.post("/updateAdminPass", (req, res) => {
   } else if (newpassword) {
     upObj.password = newpassword
     upObj.loginFlag = false
-  } else if (power) {
+  } 
+  if (power) {
     upObj.power = power
-  } else  if (adminName) {
+  } 
+  if (adminName) {
     upObj.adminName = adminName
-  } else if (password) {
+  } 
+  if (password) {
     upObj.password = password
   }
   Admin.findOne({ _id }, (err, ret) => {
@@ -641,13 +644,13 @@ app.post("/updateAdminPass", (req, res) => {
           })
         }
       )
-    } else if (power,adminName,password) {//如果前端传的参数为power，将修改权限
+    } else if (power,adminName,password) {//如果前端传的参数为power，adminName，password将修改权限，用户名，密码
       Admin.updateOne(
         { '_id': _id }, upObj, (err, docs) => {
           if (err) { return console.log('更新数据失败') }
           res.json({
             code: 2002,
-            msg: "权限修改成功"
+            msg: "修改成功"
           })
         }
       )
