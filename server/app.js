@@ -1,14 +1,14 @@
 let express = require("express");
-let path = require("path")
+let path = require("path");
 let bodyParse = require("body-parser");
-let cors = require("cors"); //跨域
-let history = require('connect-history-api-fallback');// 路由模式为history时使用
+let cors = require("cors"); // 跨域
+let history = require("connect-history-api-fallback"); // 路由模式为history时使用
 let jwt = require("jsonwebtoken"); // jwt 持久化登录
-const multer = require("multer");// 上传头像
+const multer = require("multer"); // 上传头像
 let app = express();
 app.use(bodyParse.json());
-app.use(cors()); //跨域中间件
-app.use(history()); // 使用history中间件
+app.use(cors()); // 跨域中间件
+app.use(history())
 let {
   Allstudent,
   Admin,
@@ -19,10 +19,11 @@ let {
   Class
 } = require("../db/model/user");
 // 配置静态资源
-app.use(express.static(path.join(__dirname, '../public')))
+app.use(express.static(path.join(__dirname, "../public")));
 
 // 获取所有学生
 app.get("/allstudent", async (req, res) => {
+  console.log('get方式')
   try {
     Allstudent.find({}, (err, ress) => {
       if (err) {
@@ -52,10 +53,10 @@ app.get("/allstudent", async (req, res) => {
 // 在全部学生中实现分页
 app.post("/allstudentPage", async (req, res) => {
   let page = req.body.page; //当前页数
-  let maxPage = 7; //每页最大条数
+  let pageSize = req.body.pageSize; //每页最大条数
   try {
     let allstudentList = await Allstudent.find({}, null, { sort: { studentID: -1 } });
-    let maxPageHome = Math.ceil(allstudentList.length / maxPage); //设置最大页数
+    let maxPageHome = Math.ceil(allstudentList.length / pageSize); //设置最大页数
     if (page > maxPageHome) {
       res.json({
         code: 202,
@@ -63,12 +64,12 @@ app.post("/allstudentPage", async (req, res) => {
       });
       return false;
     } else {
-      let pagelist = allstudentList.slice((page - 1) * maxPage, page * maxPage);
+      let pagelist = allstudentList.slice((page - 1) * pageSize, page * pageSize);
       res.json({
         code: 200,
         data: pagelist,
         total: allstudentList.length,
-        delpage: Math.ceil(allstudentList.length / maxPage) //页数,在删除时用,当删除的数据是你当前页的最后一条数据的时候,向上取最大页数
+        delpage: Math.ceil(allstudentList.length / pageSize) //页数,在删除时用,当删除的数据是你当前页的最后一条数据的时候,向上取最大页数
       });
     }
   } catch (error) {
@@ -84,14 +85,16 @@ app.post("/inExcel", async (req, res) => {
   // 逆向循环遍历（解决：删除数组里元素出现下标不对问题）
   for (let i = user.length - 1; i >= 0; i--) {
     await Allstudent.findOne({ studentID: user[i].studentID }, (err, ret) => {
-      if (err) { return console.log("查询失败"); }
-      if (ret) {
-        exist.push([ret, { _id: ret._id, ...user[i] }])
-        user.splice(i, 1)
+      if (err) {
+        return console.log("查询失败");
       }
-    })
+      if (ret) {
+        exist.push([ret, { _id: ret._id, ...user[i] }]);
+        user.splice(i, 1);
+      }
+    });
   }
-  let allstudentList = await Allstudent.find({});// 获取所有学生
+  let allstudentList = await Allstudent.find({}); // 获取所有学生
   let maxPage = 7; //每页最大条数
   let maxpages = Math.ceil(allstudentList.length / maxPage); //设置最大页数
   try {
@@ -114,7 +117,7 @@ app.post("/inExcel", async (req, res) => {
         code: 201,
         msg: "导入学生存在重复",
         exist
-      })
+      });
     }
   } catch (error) {
     res.json({
@@ -129,12 +132,12 @@ app.post("/addallStudent", async (req, res) => {
   if (user.study * 10 < user.chengji) {
     res.json({
       code: 201,
-      msg: "该生的学制总成绩小于当前成绩，不成立",
-    })
+      msg: "该生的学制总成绩小于当前成绩，不成立"
+    });
     return false;
   }
-  user.graduation = user.study * 10 - user.chengji  // 计算还差成绩
-  user.failss = 0 //  挂科次数默认 0 
+  user.graduation = user.study * 10 - user.chengji; // 计算还差成绩
+  user.failss = 0; //  挂科次数默认 0
   let allstudentList = await Allstudent.find({});
   let maxPage = 7; //每页最大条数
   let maxpages = Math.ceil(allstudentList.length / maxPage); //设置最大页数
@@ -157,7 +160,7 @@ app.post("/addallStudent", async (req, res) => {
             maxpages: maxpages //添加的时候要拿到最大的页数，添加完毕后跳转至最大页数
           });
         }
-      })
+      });
     });
   } catch (error) {
     res.json({
@@ -165,7 +168,6 @@ app.post("/addallStudent", async (req, res) => {
       msg: "连接失败"
     });
   }
-
 });
 
 // 在全部学生中删除
@@ -272,7 +274,7 @@ app.post("/updateAllstud", async (req, res) => {
 app.post("/selectAllstud", async (req, res) => {
   let obj = req.body.obj;
   let page = req.body.page; //查询出来的数据的当前页数 默认参数是1
-  let maxPage = 7; //每页最大条数
+  let maxPage = 5; //每页最大条数
   if (obj.name) {
     obj["name"] = new RegExp(obj.name);
   } //做一个姓名的模糊查询  加上这个判断和RegExp正则方法 拿到的obj如下 { name: /彭/ }
@@ -289,7 +291,9 @@ app.post("/selectAllstud", async (req, res) => {
   }
 
   try {
-    let allstudentList = await Allstudent.find({}, null, { sort: { studentID: -1 } });
+    let allstudentList = await Allstudent.find({}, null, {
+      sort: { studentID: -1 }
+    });
     let maxPageHome = Math.ceil(allstudentList.length / maxPage); //设置最大页数
     if (page > maxPageHome) {
       res.json({
@@ -299,7 +303,9 @@ app.post("/selectAllstud", async (req, res) => {
       return false;
     } else {
       Allstudent.find(obj, null, { sort: { studentID: -1 } }, (err, ress) => {
-        if (err) { return console.log(err); }
+        if (err) {
+          return console.log(err);
+        }
         if (ress) {
           res.json({
             code: 200,
@@ -313,7 +319,6 @@ app.post("/selectAllstud", async (req, res) => {
             msg: "当前项不存在"
           });
         }
-
       });
     }
   } catch (error) {
@@ -325,14 +330,14 @@ app.post("/selectAllstud", async (req, res) => {
 });
 // 学生批量修改
 app.post("/updateStudent", async (req, res) => {
-  let { ids, updateObj } = req.body
+  let { ids, updateObj } = req.body;
   let userAlllists = await Allstudent.find({ _id: { $in: ids } });
   if (userAlllists.length === 0) {
     res.json({
       code: 201,
       msg: "没有当前项"
     });
-    return false
+    return false;
   }
   try {
     // 更新多条数据 使用 updateMany
@@ -355,37 +360,44 @@ app.post("/updateStudent", async (req, res) => {
 });
 // Excel导入学生时修改重复项
 app.post("/updateExcelstudent", async (req, res) => {
-  let { incoExist } = req.body
+  let { incoExist } = req.body;
   await Allstudent.find({ _id: { $in: incoExist } }, (err, ret) => {
-    if (err) { return console.log(err); }
+    if (err) {
+      return console.log(err);
+    }
     if (ret) {
       if (ret.length === 0) {
         res.json({
           code: 201,
           msg: "没有当前项"
         });
-        return false
+        return false;
       }
     }
   });
   try {
     // 进行修改
     for (let i = 0; i < incoExist.length; i++) {
-      await Allstudent.updateOne({ _id: incoExist[i]._id }, incoExist[i], (err, ret) => {
-        if (err) { return console.log(err); }
-        if (!ret) {
-          return res.json({
-            code: 203,
-            msg: `${incoExist[i].name} 更新错误`
-          });
+      await Allstudent.updateOne(
+        { _id: incoExist[i]._id },
+        incoExist[i],
+        (err, ret) => {
+          if (err) {
+            return console.log(err);
+          }
+          if (!ret) {
+            return res.json({
+              code: 203,
+              msg: `${incoExist[i].name} 更新错误`
+            });
+          }
         }
-      });
+      );
     }
     res.json({
       code: 200,
       msg: "更新成功"
     });
-
   } catch {
     res.json({
       code: 202,
@@ -396,21 +408,23 @@ app.post("/updateExcelstudent", async (req, res) => {
 // 学生根据学号查询个人信息
 app.post("/selectOneStudent", (req, res) => {
   Allstudent.findOne({ studentID: req.body.studentID }, (err, ret) => {
-    if (err) { return console.log(err) }
+    if (err) {
+      return console.log(err);
+    }
     if (ret) {
       res.json({
         code: 200,
         data: [ret],
         msg: "查询成功"
-      })
+      });
     } else {
       res.json({
         code: 201,
         msg: "暂无该学生"
-      })
+      });
     }
-  })
-})
+  });
+});
 // ·························································································································
 // 获取所有用户信息
 app.get("/getAllAdmin", (req, res) => {
@@ -422,15 +436,15 @@ app.get("/getAllAdmin", (req, res) => {
         if (ret) {
           // 在用户的所有数据中删除权限为 1 的
           for (let i = 0; i < ret.length; i++) {
-            let { power } = ret[i]
+            let { power } = ret[i];
             if (power == "1") {
-              ret.splice(i, 1)
+              ret.splice(i, 1);
             }
           }
           // 把过滤掉权限为 1 的数据，再次将密码去掉
           for (let i = 0; i < ret.length; i++) {
-            let { _id, adminName, avatar, power, password } = ret[i]
-            ret[i] = { _id, adminName, avatar, power, password }
+            let { _id, adminName, avatar, power, password } = ret[i];
+            ret[i] = { _id, adminName, avatar, power, password };
           }
           res.json({
             code: 200,
@@ -450,24 +464,24 @@ app.get("/getAllAdmin", (req, res) => {
       msg: error
     });
   }
-})
+});
 // 在所有用户中实现分页
 app.post("/adminPage", async (req, res) => {
   let { page } = req.body; //当前页数
   let pageSize = 6; //每页显示条目个数
   try {
-    let dataList = await Admin.find({});//获取用户的所有数据
+    let dataList = await Admin.find({}); //获取用户的所有数据
     // 在用户的所有数据中删除权限为 1 的
     for (let i = 0; i < dataList.length; i++) {
-      let { power } = dataList[i]
+      let { power } = dataList[i];
       if (power == "1") {
-        dataList.splice(i, 1)
+        dataList.splice(i, 1);
       }
     }
     // 把过滤掉权限为 1 的数据，再次将密码去掉
     for (let i = 0; i < dataList.length; i++) {
-      let { _id, adminName, avatar, power } = dataList[i]
-      dataList[i] = { _id, adminName, avatar, power }
+      let { _id, adminName, avatar, power } = dataList[i];
+      dataList[i] = { _id, adminName, avatar, power };
     }
     //最大页数
     let maxPageHome = Math.ceil(dataList.length / pageSize);
@@ -482,7 +496,7 @@ app.post("/adminPage", async (req, res) => {
       let pagelist = dataList.slice((page - 1) * pageSize, page * pageSize);
       res.json({
         code: 200,
-        data: pagelist,// 截取的当前页的数据
+        data: pagelist, // 截取的当前页的数据
         total: dataList.length, // 总数据的长度，
         delpage: Math.ceil(dataList.length / pageSize) //页数,在删除时用,当删除的数据是你当前页的最后一条数据的时候,向上取最大页数
       });
@@ -493,7 +507,7 @@ app.post("/adminPage", async (req, res) => {
 });
 // 获取当前登录用户信息
 app.get("/getadmin", (req, res) => {
-  jwt.verify(req.query.token, "abcd", function (err, decode) {
+  jwt.verify(req.query.token, "abcd", function(err, decode) {
     if (err) {
       res.json({
         code: 5005,
@@ -580,11 +594,12 @@ app.post("/register", (req, res) => {
     var user = new Admin({
       adminName: name,
       password: pass,
-      avatar: "https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif",
+      avatar:
+        "https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif",
       power: power,
       loginFlag: loginFlag
     });
-    user.save(function (err, ress) {
+    user.save(function(err, ress) {
       if (err) {
         return console.log(err);
       }
@@ -598,64 +613,77 @@ app.post("/register", (req, res) => {
 });
 // 修改用户密码/权限
 app.post("/updateAdminPass", (req, res) => {
-  const { _id, oldpassword, newpassword, power, adminName,password } = req.body;
-  let upObj = {}
+  const {
+    _id,
+    oldpassword,
+    newpassword,
+    power,
+    adminName,
+    password
+  } = req.body;
+  let upObj = {};
   if (oldpassword && newpassword) {
-    upObj.password = newpassword
+    upObj.password = newpassword;
   } else if (newpassword) {
-    upObj.password = newpassword
-    upObj.loginFlag = false
-  } 
+    upObj.password = newpassword;
+    upObj.loginFlag = false;
+  }
   if (power) {
-    upObj.power = power
-  } 
+    upObj.power = power;
+  }
   if (adminName) {
-    upObj.adminName = adminName
-  } 
+    upObj.adminName = adminName;
+  }
   if (password) {
-    upObj.password = password
+    upObj.password = password;
   }
   Admin.findOne({ _id }, (err, ret) => {
-    if (err) { return console.log(err) };
-    if (oldpassword && newpassword) {//如果前端传的参数为oldpassword、newpassword，将修改密码
-      if (ret.password === oldpassword) {//验证输入的旧密码是否跟数据库的密码匹配
-        Admin.updateOne(
-          { '_id': _id }, upObj, (err, docs) => {
-            if (err) { return console.log('更新数据失败'); }
-            res.json({
-              code: 200,
-              msg: "密码修改成功"
-            })
+    if (err) {
+      return console.log(err);
+    }
+    if (oldpassword && newpassword) {
+      //如果前端传的参数为oldpassword、newpassword，将修改密码
+      if (ret.password === oldpassword) {
+        //验证输入的旧密码是否跟数据库的密码匹配
+        Admin.updateOne({ _id: _id }, upObj, (err, docs) => {
+          if (err) {
+            return console.log("更新数据失败");
           }
-        )
+          res.json({
+            code: 200,
+            msg: "密码修改成功"
+          });
+        });
       } else {
         res.json({
           code: 201,
           msg: "旧密码错误"
-        })
+        });
       }
-    } else if (newpassword) {//如果前端传的参数只有新密码 newpassword，将修改密码，并且将首次登录标识设置为false
-      Admin.updateOne(
-        { '_id': _id }, upObj, (err, docs) => {
-          if (err) { return console.log('更新数据失败') }
-          res.json({
-            code: 2004,
-            msg: "密码修改成功"
-          })
+    } else if (newpassword) {
+      //如果前端传的参数只有新密码 newpassword，将修改密码，并且将首次登录标识设置为false
+      Admin.updateOne({ _id: _id }, upObj, (err, docs) => {
+        if (err) {
+          return console.log("更新数据失败");
         }
-      )
-    } else if (power,adminName,password) {//如果前端传的参数为power，adminName，password将修改权限，用户名，密码
-      Admin.updateOne(
-        { '_id': _id }, upObj, (err, docs) => {
-          if (err) { return console.log('更新数据失败') }
-          res.json({
-            code: 2002,
-            msg: "修改成功"
-          })
+        res.json({
+          code: 2004,
+          msg: "密码修改成功"
+        });
+      });
+    } else if ((power, adminName, password)) {
+      //如果前端传的参数为power，adminName，password将修改权限，用户名，密码
+      Admin.updateOne({ _id: _id }, upObj, (err, docs) => {
+        if (err) {
+          return console.log("更新数据失败");
         }
-      )
-    } 
-  })
+        res.json({
+          code: 2002,
+          msg: "修改成功"
+        });
+      });
+    }
+  });
 });
 // 删除管理员用户
 app.post("/delAdmin", async (req, res) => {
@@ -701,20 +729,20 @@ app.post("/delAdmin", async (req, res) => {
 //配置diskStorage来控制文件存储的位置以及文件名字等
 let storage = multer.diskStorage({
   //确定图片存储的位置
-  destination: function (req, file, cb) {
-    cb(null, '../public/avatars')
+  destination: function(req, file, cb) {
+    cb(null, "../public/avatars");
   },
   //确定图片存储时的名字,注意，如果使用原名，可能会造成再次上传同一张图片的时候的冲突
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname)
+  filename: function(req, file, cb) {
+    cb(null, Date.now() + "-" + file.originalname);
   }
 });
 // //生成的专门处理上传的一个工具，可以传入storage、limits等配置
 let upload = multer({ storage });
 // 上传用户头像接口
-app.post('/uploadAvatar', upload.single('files'), (req, res, next) => {
+app.post("/uploadAvatar", upload.single("files"), (req, res, next) => {
   let _id = req.body.id;
-  var url = 'http://132.232.89.22:8080/avatars/' + req.file.filename;
+  var url = "http://132.232.89.22:8080/avatars/" + req.file.filename;
   if (req.file.filename) {
     Admin.findByIdAndUpdate(
       _id,
@@ -731,7 +759,7 @@ app.post('/uploadAvatar', upload.single('files'), (req, res, next) => {
           });
         }
       }
-    )
+    );
   }
 });
 
@@ -766,9 +794,9 @@ app.get("/getHeadTeacher", async (req, res) => {
 // 在所有班主任中实现分页
 app.post("/headTeacherPage", async (req, res) => {
   let { page } = req.body; //当前页数
-  let pageSize = 6; //每页显示条目个数
+  let pageSize = req.body.pageSize; //每页显示条目个数
   try {
-    let dataList = await Headteacher.find({});//获取班主任的所有数据
+    let dataList = await Headteacher.find({}); //获取班主任的所有数据
     let maxPageHome = Math.ceil(dataList.length / pageSize); //最大页数
     if (page > maxPageHome) {
       res.json({
@@ -780,7 +808,7 @@ app.post("/headTeacherPage", async (req, res) => {
       let pagelist = dataList.slice((page - 1) * pageSize, page * pageSize);
       res.json({
         code: 200,
-        data: pagelist,// 截取的当前页的数据
+        data: pagelist, // 截取的当前页的数据
         total: dataList.length, // 总数据的长度，
         delpage: Math.ceil(dataList.length / pageSize) //页数,在删除时用,当删除的数据是你当前页的最后一条数据的时候,向上取最大页数
       });
@@ -798,7 +826,7 @@ app.post("/addHeadTeacher", (req, res) => {
     headage,
     entryDate
   });
-  user.save(function (err, ress) {
+  user.save(function(err, ress) {
     if (err) {
       return console.log(err);
     }
@@ -900,9 +928,9 @@ app.get("/getLecturer", async (req, res) => {
 // 在所有讲师中实现分页
 app.post("/lecturerPage", async (req, res) => {
   let { page } = req.body; //当前页数
-  let pageSize = 6; //每页显示条目个数
+  let pageSize = req.body.pageSize; //每页显示条目个数
   try {
-    let dataList = await Lecturer.find({});//获取讲师的所有数据
+    let dataList = await Lecturer.find({}); //获取讲师的所有数据
     let maxPageHome = Math.ceil(dataList.length / pageSize); //最大页数
     if (page > maxPageHome) {
       res.json({
@@ -914,7 +942,7 @@ app.post("/lecturerPage", async (req, res) => {
       let pagelist = dataList.slice((page - 1) * pageSize, page * pageSize);
       res.json({
         code: 200,
-        data: pagelist,// 截取的当前页的数据
+        data: pagelist, // 截取的当前页的数据
         total: dataList.length, // 总数据的长度，
         delpage: Math.ceil(dataList.length / pageSize) //页数,在删除时用,当删除的数据是你当前页的最后一条数据的时候,向上取最大页数
       });
@@ -933,7 +961,7 @@ app.post("/addLecturer", (req, res) => {
     major,
     entryDate
   });
-  user.save(function (err, ress) {
+  user.save(function(err, ress) {
     if (err) {
       return console.log(err);
     }
@@ -1044,7 +1072,7 @@ app.post("/addMajor", (req, res) => {
     var user = new Major({
       majorname
     });
-    user.save(function (err, ress) {
+    user.save(function(err, ress) {
       if (err) {
         return console.log(err);
       }
@@ -1096,7 +1124,7 @@ app.post("/addMarket", (req, res) => {
     var user = new Market({
       marketname
     });
-    user.save(function (err, ress) {
+    user.save(function(err, ress) {
       if (err) {
         return console.log(err);
       }
@@ -1178,14 +1206,14 @@ app.get("/getClass", async (req, res) => {
 // 在所有班级中实现分页
 app.post("/classPage", async (req, res) => {
   let { page, major } = req.body; //当前页数
-  let pageSize = 6; //每页显示条目个数
+  let pageSize = req.body.pageSize; //每页显示条目个数
   // 根据专业过滤对应班级
-  let filterMajor = {}
+  let filterMajor = {};
   if (major) {
-    filterMajor.major = major
+    filterMajor.major = major;
   }
   try {
-    let dataList = await Class.find(filterMajor);//获取班级的所有数据
+    let dataList = await Class.find(filterMajor); //获取班级的所有数据
     let maxPageHome = Math.ceil(dataList.length / pageSize); //最大页数
     if (page > maxPageHome) {
       res.json({
@@ -1197,7 +1225,7 @@ app.post("/classPage", async (req, res) => {
       let pagelist = dataList.slice((page - 1) * pageSize, page * pageSize);
       res.json({
         code: 200,
-        data: pagelist,// 截取的当前页的数据
+        data: pagelist, // 截取的当前页的数据
         dataList,
         total: dataList.length, // 总数据的长度，
         delpage: Math.ceil(dataList.length / pageSize) //页数,在删除时用,当删除的数据是你当前页的最后一条数据的时候,向上取最大页数
@@ -1264,7 +1292,7 @@ app.post("/createClass", (req, res) => {
       lecturer,
       headteacher
     });
-    user.save(function (err, ress) {
+    user.save(function(err, ress) {
       if (err) {
         return console.log(err);
       }
@@ -1304,7 +1332,9 @@ app.post("/searchClass", async (req, res) => {
   } //班级名称的模糊查询  加上这个判断和RegExp正则方法  { classname: /1807A/ }
   try {
     Class.find(req.body, (err, ret) => {
-      if (err) { return console.log(err) };
+      if (err) {
+        return console.log(err);
+      }
       if (ret.length != 0) {
         res.json({
           code: 200,
@@ -1326,16 +1356,6 @@ app.post("/searchClass", async (req, res) => {
 });
 
 // ·························································································································
-//口令红包
-app.get("/hblq", (req, res) => {
-  const key = req.query.key;
-  if (key === "ThankyouforComming") {
-    var _html = "<p><strong>" + "你要的答案是🤣：43532622" + "</p>";
-    res.send(_html);
-  } else {
-    res.send("你别蒙啊");
-  }
-});
 app.listen(8080, () => {
   console.log("8080启动成功");
 });
